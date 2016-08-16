@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+
+<launch>
+  <arg name="map_file" default="$(find orne_navigation_executor)/maps/mymap.yaml"/>
+
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)"/>
+
+  <node name="amcl_humio" pkg="amcl_humio" type="amcl" output="screen"/>
+
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find orne_navigation_executor)/rviz_cfg/nav.rviz"/>
+</launch>
