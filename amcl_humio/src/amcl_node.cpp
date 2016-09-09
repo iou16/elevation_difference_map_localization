@@ -49,6 +49,8 @@
 #include <pcl/point_types.h>
 #include <pcl/filters/voxel_grid.h>
 
+#include <fstream>
+
 #define NEW_UNIFORM_SAMPLING 1
 
 using namespace amcl;
@@ -207,6 +209,7 @@ class AmclNode
     ros::NodeHandle private_nh_;
     ros::Publisher pose_pub_;
     ros::Publisher particlecloud_pub_;
+    ros::Publisher path_pub_;
     ros::ServiceServer global_loc_srv_;
     ros::ServiceServer nomotion_update_srv_; //to let amcl update samples without requiring motion
     ros::ServiceServer set_map_srv_;
@@ -246,6 +249,9 @@ class AmclNode
     ros::Duration cloud_check_interval_;
     // void checkLaserReceived(const ros::TimerEvent& event);
     void checkCloudReceived(const ros::TimerEvent& event);
+
+    geometry_msgs::PoseArray path_;
+    double cloud_z_;
 };
 
 std::vector<std::pair<int,int> > AmclNode::free_space_indices;
@@ -311,8 +317,10 @@ AmclNode::AmclNode() :
   // private_nh_.param("laser_min_range", laser_min_range_, -1.0);
   // private_nh_.param("laser_max_range", laser_max_range_, -1.0);
   // private_nh_.param("laser_max_beams", max_beams_, 30);
-  private_nh_.param("min_particles", min_particles_, 500);
+  private_nh_.param("min_particles", min_particles_, 5);
   private_nh_.param("max_particles", max_particles_, 50);
+  // private_nh_.param("min_particles", min_particles_, 1);
+  // private_nh_.param("max_particles", max_particles_, 1);
   private_nh_.param("kld_err", pf_err_, 0.01);
   private_nh_.param("kld_z", pf_z_, 0.99);
   private_nh_.param("odom_alpha1", alpha1_, 0.2);
@@ -320,6 +328,11 @@ AmclNode::AmclNode() :
   private_nh_.param("odom_alpha3", alpha3_, 0.2);
   private_nh_.param("odom_alpha4", alpha4_, 0.2);
   private_nh_.param("odom_alpha5", alpha5_, 0.2);
+  // private_nh_.param("odom_alpha1", alpha1_, 0.0);
+  // private_nh_.param("odom_alpha2", alpha2_, 0.0);
+  // private_nh_.param("odom_alpha3", alpha3_, 0.0);
+  // private_nh_.param("odom_alpha4", alpha4_, 0.0);
+  // private_nh_.param("odom_alpha5", alpha5_, 0.0);
   
   // private_nh_.param("do_beamskip", do_beamskip_, false);
   private_nh_.param("beam_skip_distance", beam_skip_distance_, 0.5);
@@ -389,6 +402,7 @@ AmclNode::AmclNode() :
   tf_ = new tf::TransformListener();
 
   pose_pub_ = nh_.advertise<geometry_msgs::PoseWithCovarianceStamped>("amcl_pose", 2, true);
+  path_pub_ = nh_.advertise<geometry_msgs::PoseArray>("path", 2, true);
   particlecloud_pub_ = nh_.advertise<geometry_msgs::PoseArray>("particlecloud", 2, true);
   global_loc_srv_ = nh_.advertiseService("global_localization", 
 					 &AmclNode::globalLocalizationCallback,
@@ -427,6 +441,8 @@ AmclNode::AmclNode() :
   //                                      boost::bind(&AmclNode::checkLaserReceived, this, _1));
   check_cloud_timer_ = nh_.createTimer(cloud_check_interval_, 
                                        boost::bind(&AmclNode::checkCloudReceived, this, _1));
+
+  path_.poses.clear();
 }
 
 // void AmclNode::reconfigureCB(AMCLConfig &config, uint32_t level)
@@ -606,9 +622,12 @@ void AmclNode::updatePoseFromServer()
   init_pose_[0] = 0.0;
   init_pose_[1] = 0.0;
   init_pose_[2] = 0.0;
-  init_cov_[0] = 0.5 * 0.5;
-  init_cov_[1] = 0.5 * 0.5;
-  init_cov_[2] = (M_PI/12.0) * (M_PI/12.0);
+  // init_cov_[0] = 0.5 * 0.5;
+  // init_cov_[1] = 0.5 * 0.5;
+  // init_cov_[2] = (M_PI/12.0) * (M_PI/12.0);
+  init_cov_[0] = 0.0;
+  init_cov_[1] = 0.0;
+  init_cov_[2] = 0.0;
   // Check for NAN on input from param server, #5239
   double tmp_pos;
   private_nh_.param("initial_pose_x", tmp_pos, init_pose_[0]);
@@ -818,6 +837,8 @@ AmclNode::convertMap( const nav_msgs::OccupancyGrid& map_msg )
       map->cells[i].occ_state = +1;
     else
       map->cells[i].occ_state = 0;
+
+    map->cells[i].diff = 0.0;
   }
 
   pcl::PointCloud<pcl::PointXYZI>::Ptr map_cloud (new pcl::PointCloud<pcl::PointXYZI>);
@@ -825,15 +846,55 @@ AmclNode::convertMap( const nav_msgs::OccupancyGrid& map_msg )
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/diff_elevation_map_delta.pcd"), *map_cloud);
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/3f.pcd"), *map_cloud);
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/diff_elevation_map_gaisyuu_.pcd"), *map_cloud);
-  reader.read<pcl::PointXYZI> (std::string("/home/humio/diff_elevation_map_gaisyuu.pcd"), *map_cloud);
+  // reader.read<pcl::PointXYZI> (std::string("/home/humio/diff_elevation_map_gaisyuu.pcd"), *map_cloud);
+  // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0831.pcd"), *map_cloud);
+  // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0901.pcd"), *map_cloud);
+  // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0901_1.pcd"), *map_cloud);
+  reader.read<pcl::PointXYZI> (std::string("/home/humio/3f_0901.pcd"), *map_cloud);
+  // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0907_01.pcd"), *map_cloud);
   for(int i=0;i<map_cloud->points.size();i++)
   {
     int mi = MAP_GXWX(map,map_cloud->points.at(i).x);
     int mj = MAP_GYWY(map,map_cloud->points.at(i).y);
     if(!MAP_VALID(map, mi, mj)) continue;
     map->cells[MAP_INDEX(map, mi, mj)].diff = map_cloud->points.at(i).intensity;
-    map->cells[MAP_INDEX(map, mi, mj)].flag = true;
   }
+
+  // map_t* fmap = map_alloc();
+  // ROS_ASSERT(fmap);
+  // fmap->size_x = map->size_x;
+  // fmap->size_y = map->size_y;
+  // fmap->scale = map->scale;
+  // fmap->origin_x = map->origin_x;
+  // fmap->origin_y = map->origin_y;
+  // fmap->cells = (map_cell_t*)malloc(sizeof(map_cell_t)*fmap->size_x*fmap->size_y);
+  // ROS_ASSERT(fmap->cells);
+
+  // // 3*3の場合
+  // for(int center_x=0; center_x<map->size_x; center_x++){
+  //   for(int center_y=0; center_y<map->size_y; center_y++){
+  //     for (int x=-1; x<=1; x++){
+  //       for(int y=-1; y<=1; y++){
+  //         if (!(MAP_VALID(map, x+center_x, y+center_y))) continue;
+  //         if (map->cells[MAP_INDEX(map, x+center_x, y+center_y)].diff == 0.0) continue;
+  //         if(x==0 && y==0) {
+  //           fmap->cells[MAP_INDEX(fmap, center_x, center_y)].diff+=map->cells[MAP_INDEX(map, x+center_x, y+center_y)].diff / 4;
+  //         } else if(x==0 || y==0) {
+  //           fmap->cells[MAP_INDEX(fmap, center_x, center_y)].diff+=map->cells[MAP_INDEX(map, x+center_x, y+center_y)].diff / 8;
+  //         } else {
+  //           fmap->cells[MAP_INDEX(fmap, center_x, center_y)].diff+=map->cells[MAP_INDEX(map, x+center_x, y+center_y)].diff / 16;
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
+
+  // for(int i=0;i<map->size_x;i++) {
+  //     for(int j=0;j<map->size_y;j++) {
+  //       if (!(MAP_VALID(map, i, j))) continue;
+  //       map->cells[MAP_INDEX(map, i, j)].diff=fmap->cells[MAP_INDEX(fmap, i, j)].diff;
+  //     } 
+  // }
 
   return map;
 }
@@ -952,6 +1013,7 @@ AmclNode::setMapCallback(nav_msgs::SetMap::Request& req,
 void
 AmclNode::cloudReceived(const sensor_msgs::PointCloudConstPtr& point_cloud)
 {
+
   last_cloud_received_ts_ = ros::Time::now();
   if( map_ == NULL ) {
     return;
@@ -987,6 +1049,7 @@ AmclNode::cloudReceived(const sensor_msgs::PointCloudConstPtr& point_cloud)
     pf_vector_t cloud_pose_v;
     cloud_pose_v.v[0] = cloud_pose.getOrigin().x();
     cloud_pose_v.v[1] = cloud_pose.getOrigin().y();
+    cloud_z_ = cloud_pose.getOrigin().z();
     // laser mounting angle gets computed later -> set to 0 here!
     cloud_pose_v.v[2] = 0;
     clouds_[cloud_index]->SetPointCloudPose(cloud_pose_v);
@@ -1071,6 +1134,7 @@ AmclNode::cloudReceived(const sensor_msgs::PointCloudConstPtr& point_cloud)
     //this->pf_odom_pose = pose;
   }
 
+  // ros::Time start = ros::Time::now();
   bool resampled = false;
   // If the robot has moved, update the filter
   if(clouds_update_[cloud_index])
@@ -1083,12 +1147,64 @@ AmclNode::cloudReceived(const sensor_msgs::PointCloudConstPtr& point_cloud)
     pcl::PointCloud<pcl::PointXYZ>::Ptr voxel_cloud (new pcl::PointCloud<pcl::PointXYZ>);
     pcl::VoxelGrid<pcl::PointXYZ> vg;
     vg.setInputCloud (pcl_point_cloud);
-    vg.setLeafSize (0.05, 0.05, 0.05);
+    vg.setLeafSize (0.1, 0.1, 0.1);
     vg.filter (*voxel_cloud);
+    // ROS_INFO_STREAM("voxel :" << voxel_cloud->points.size());
+
+    // map_t *ds_map = map_alloc();
+    // ds_map->size_x = 300;
+    // ds_map->size_y = 300;
+    // ds_map->scale = 0.1;
+    // // ds_map->origin_x = 15.0;
+    // // ds_map->origin_y = 15.0;
+    // ds_map->origin_x = 0.0;
+    // ds_map->origin_y = 0.0;
+    // ds_map->cells = (map_cell_t*)malloc(sizeof(map_cell_t)*ds_map->size_x*ds_map->size_y);
+
+    // for(int i=0; i<ds_map->size_x*ds_map->size_y; i++) {
+    //   // if(ds_map->cells[i].diff == 0.0) {
+    //   //   ROS_INFO("diff: %f", ds_map->cells[i].diff);
+    //   // }    
+    //   ds_map->cells[i].diff = 0.0;
+    //   ds_map->cells[i].min = 0.0;
+    //   ds_map->cells[i].max = 0.0;
+    // }
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr filter_cloud (new pcl::PointCloud<pcl::PointXYZ>);
+    filter_cloud->points.clear();
+    for(int i=0; i<voxel_cloud->points.size(); i++) {
+      // map_updata_cell(ds_map, voxel_cloud->points.at(i).x, voxel_cloud->points.at(i).y, voxel_cloud->points.at(i).z);
+      if ((voxel_cloud->points.at(i).z-cloud_z_) < 1.5){
+       filter_cloud->points.push_back(voxel_cloud->points.at(i));
+      } else {
+       voxel_cloud->points.at(i).z = 1.5;
+       filter_cloud->points.push_back(voxel_cloud->points.at(i));
+      }
+    }
+
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr filter_cloud (new pcl::PointCloud<pcl::PointXYZ>);
+    // for (int i=0; i<ds_map->size_x; i++) {
+    //   for (int j=0; j<ds_map->size_y; j++) {
+    //     if(ds_map->cells[MAP_INDEX(ds_map, i, j)].min == ds_map->cells[MAP_INDEX(ds_map, i, j)].max) continue;
+    //     if(ds_map->cells[MAP_INDEX(ds_map, i, j)].diff == 0.0) continue;
+    //     if(fabs(ds_map->cells[MAP_INDEX(ds_map, i, j)].diff) < 0.05) continue;
+    //     pcl::PointXYZ p_msg;
+    //     p_msg.x = MAP_WXGX(ds_map, i);
+    //     p_msg.y = MAP_WXGX(ds_map, j);
+    //     p_msg.z = ds_map->cells[MAP_INDEX(ds_map, i, j)].min;
+    //     filter_cloud->points.push_back(p_msg);
+    //     p_msg.z = ds_map->cells[MAP_INDEX(ds_map, i, j)].max;
+    //     filter_cloud->points.push_back(p_msg);
+    //   }
+    // }
+    // map_free(ds_map);
+    // ds_map = NULL;
+
+    // // ROS_INFO_STREAM("filter :" << filter_cloud->points.size());
 
     AMCLPointCloudData cdata;
     cdata.sensor = clouds_[cloud_index];
-    cdata.points_size = voxel_cloud->points.size();
+    cdata.points_size = filter_cloud->points.size();
 
     // The AMCLLaserData destructor will free this memory
     cdata.points = new double[cdata.points_size][3];
@@ -1098,12 +1214,32 @@ AmclNode::cloudReceived(const sensor_msgs::PointCloudConstPtr& point_cloud)
     {
       // amcl doesn't (yet) have a concept of min range.  So we'll map short
       // readings to max range.
-      cdata.points[i][0] = voxel_cloud->points.at(i).x;
-      cdata.points[i][1] = voxel_cloud->points.at(i).y;
-      cdata.points[i][2] = voxel_cloud->points.at(i).z;
+      cdata.points[i][0] = filter_cloud->points.at(i).x;
+      cdata.points[i][1] = filter_cloud->points.at(i).y;
+      cdata.points[i][2] = filter_cloud->points.at(i).z;
     }
+    // filter_cloud->points.clear();
+
+    // AMCLPointCloudData cdata;
+    // cdata.sensor = clouds_[cloud_index];
+    // cdata.points_size = voxel_cloud->points.size();
+
+    // // The AMCLLaserData destructor will free this memory
+    // cdata.points = new double[cdata.points_size][3];
+    // ROS_ASSERT(cdata.points);
+
+    // for(int i=0;i<cdata.points_size;i++)
+    // {
+    //   // amcl doesn't (yet) have a concept of min range.  So we'll map short
+    //   // readings to max range.
+    //   cdata.points[i][0] = voxel_cloud->points.at(i).x;
+    //   cdata.points[i][1] = voxel_cloud->points.at(i).y;
+    //   cdata.points[i][2] = voxel_cloud->points.at(i).z;
+    // }
 
     clouds_[cloud_index]->UpdateSensor(pf_, (AMCLSensorData*)&cdata);
+
+    // ROS_INFO_STREAM("time :" << ros::Time::now() - start);
 
     clouds_update_[cloud_index] = false;
 
@@ -1181,14 +1317,21 @@ AmclNode::cloudReceived(const sensor_msgs::PointCloudConstPtr& point_cloud)
        */
 
       geometry_msgs::PoseWithCovarianceStamped p;
+      geometry_msgs::Pose np;
       // Fill in the header
       p.header.frame_id = global_frame_id_;
       p.header.stamp = point_cloud->header.stamp;
+      path_.header.frame_id = global_frame_id_;
+      path_.header.stamp = point_cloud->header.stamp;
       // Copy in the pose
       p.pose.pose.position.x = hyps[max_weight_hyp].pf_pose_mean.v[0];
       p.pose.pose.position.y = hyps[max_weight_hyp].pf_pose_mean.v[1];
       tf::quaternionTFToMsg(tf::createQuaternionFromYaw(hyps[max_weight_hyp].pf_pose_mean.v[2]),
                             p.pose.pose.orientation);
+      np.position.x = hyps[max_weight_hyp].pf_pose_mean.v[0];
+      np.position.y = hyps[max_weight_hyp].pf_pose_mean.v[1];
+      tf::quaternionTFToMsg(tf::createQuaternionFromYaw(hyps[max_weight_hyp].pf_pose_mean.v[2]),
+                            np.orientation);
       // Copy in the covariance, converting from 3-D to 6-D
       pf_sample_set_t* set = pf_->sets + pf_->current_set;
       for(int i=0; i<2; i++)
@@ -1217,6 +1360,9 @@ AmclNode::cloudReceived(const sensor_msgs::PointCloudConstPtr& point_cloud)
        */
 
       pose_pub_.publish(p);
+
+      path_.poses.push_back(np);
+      path_pub_.publish(path_);
       last_published_pose = p;
 
       ROS_DEBUG("New pose: %6.3f %6.3f %6.3f",

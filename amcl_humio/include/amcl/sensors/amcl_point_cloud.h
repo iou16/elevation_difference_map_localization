@@ -4,6 +4,11 @@
 #include "amcl_sensor.h"
 #include "../map/map.h"
 
+// #include "ros/ros.h"
+// #include "sensor_msgs/PointCloud.h"
+// #include "geometry_msgs/Point32.h"
+
+
 namespace amcl
 {
 
@@ -30,6 +35,7 @@ class AMCLPointCloud : public AMCLSensor
 
   public: void SetPointCloudPose(pf_vector_t& point_cloud_pose) 
           {this->point_cloud_pose = point_cloud_pose;}
+
 
   private: static double ElevationDifferenceMapModel(AMCLPointCloudData *data, 
                                                      pf_sample_set_t* set);
