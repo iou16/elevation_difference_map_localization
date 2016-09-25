@@ -86,7 +86,8 @@ double AMCLPointCloud::ElevationDifferenceMapModel(AMCLPointCloudData *data, pf_
 
     pose = pf_vector_coord_add(self->point_cloud_pose, pose);
 
-    double p = 1.0;
+    // double p = 1.0;
+    double p = 0.0;
 
     // map_t *obs_map = map_alloc();
     // obs_map->size_x = 300;
@@ -122,19 +123,21 @@ double AMCLPointCloud::ElevationDifferenceMapModel(AMCLPointCloudData *data, pf_
     {
       for (int mj = MAP_GYWY(self->map, pose.v[1]-15); mj < MAP_GYWY(self->map, pose.v[1]+15); mj++)
       {
-        double pz = 0.0;
+        // double pz = 0.0;
         
-        if(self->map->cells[MAP_INDEX(self->map,mi,mj)].diff == 0.0 || obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff == 0.0) continue;
+        // if(self->map->cells[MAP_INDEX(self->map,mi,mj)].diff == 0.0 || obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff == 0.0) continue;
         // std::cout << "test" << std::endl;
-        if(self->map->cells[MAP_INDEX(self->map,mi,mj)].diff < 0.05 || obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff < 0.05) continue;
+        // if(self->map->cells[MAP_INDEX(self->map,mi,mj)].diff < 0.05 || obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff < 0.05) continue;
 
         if((!MAP_VALID(self->map, mi, mj))||(!MAP_VALID(obs_map, mi, mj))) continue;
 
         double z = self->map->cells[MAP_INDEX(self->map,mi,mj)].diff - obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff;
-        pz += self->z_hit * exp(-(z * z) / z_hit_denom);
+        // pz += self->z_hit * exp(-(z * z) / z_hit_denom);
+        double pz = obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff * exp(-(z * z) / z_hit_denom); 
         // pz += self->z_rand * z_rand_mult;
 
-        p += pz*pz*pz;
+        // p += pz*pz*pz;
+        p += pz;
         // p += pz;
         // std::cout << "test" << std::endl;
         // geometry_msgs::Point32 map_point;

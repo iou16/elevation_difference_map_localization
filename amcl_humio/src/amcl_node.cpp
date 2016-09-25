@@ -850,8 +850,8 @@ AmclNode::convertMap( const nav_msgs::OccupancyGrid& map_msg )
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0831.pcd"), *map_cloud);
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0901.pcd"), *map_cloud);
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0901_1.pcd"), *map_cloud);
-  reader.read<pcl::PointXYZI> (std::string("/home/humio/3f_0901.pcd"), *map_cloud);
-  // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0907_01.pcd"), *map_cloud);
+  // reader.read<pcl::PointXYZI> (std::string("/home/humio/3f_0901.pcd"), *map_cloud);
+  reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0907_01.pcd"), *map_cloud);
   for(int i=0;i<map_cloud->points.size();i++)
   {
     int mi = MAP_GXWX(map,map_cloud->points.at(i).x);
