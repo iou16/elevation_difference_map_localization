@@ -851,50 +851,55 @@ AmclNode::convertMap( const nav_msgs::OccupancyGrid& map_msg )
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0901.pcd"), *map_cloud);
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0901_1.pcd"), *map_cloud);
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/3f_0901.pcd"), *map_cloud);
-  reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0907_01.pcd"), *map_cloud);
+  // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0907_01.pcd"), *map_cloud);
+  // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0927_01.pcd"), *map_cloud);
+  reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0927_02.pcd"), *map_cloud);
+  
   for(int i=0;i<map_cloud->points.size();i++)
   {
     int mi = MAP_GXWX(map,map_cloud->points.at(i).x);
     int mj = MAP_GYWY(map,map_cloud->points.at(i).y);
     if(!MAP_VALID(map, mi, mj)) continue;
-    map->cells[MAP_INDEX(map, mi, mj)].diff = map_cloud->points.at(i).intensity;
+    // map->cells[MAP_INDEX(map, mi, mj)].diff = map_cloud->points.at(i).intensity;
+    map->cells[MAP_INDEX(map, mi, mj)].diff = map_cloud->points.at(i).z;
+    map->cells[MAP_INDEX(map, mi, mj)].cov = map_cloud->points.at(i).intensity;
   }
 
-  // map_t* fmap = map_alloc();
-  // ROS_ASSERT(fmap);
-  // fmap->size_x = map->size_x;
-  // fmap->size_y = map->size_y;
-  // fmap->scale = map->scale;
-  // fmap->origin_x = map->origin_x;
-  // fmap->origin_y = map->origin_y;
-  // fmap->cells = (map_cell_t*)malloc(sizeof(map_cell_t)*fmap->size_x*fmap->size_y);
-  // ROS_ASSERT(fmap->cells);
+  map_t* fmap = map_alloc();
+  ROS_ASSERT(fmap);
+  fmap->size_x = map->size_x;
+  fmap->size_y = map->size_y;
+  fmap->scale = map->scale;
+  fmap->origin_x = map->origin_x;
+  fmap->origin_y = map->origin_y;
+  fmap->cells = (map_cell_t*)malloc(sizeof(map_cell_t)*fmap->size_x*fmap->size_y);
+  ROS_ASSERT(fmap->cells);
 
-  // // 3*3の場合
-  // for(int center_x=0; center_x<map->size_x; center_x++){
-  //   for(int center_y=0; center_y<map->size_y; center_y++){
-  //     for (int x=-1; x<=1; x++){
-  //       for(int y=-1; y<=1; y++){
-  //         if (!(MAP_VALID(map, x+center_x, y+center_y))) continue;
-  //         if (map->cells[MAP_INDEX(map, x+center_x, y+center_y)].diff == 0.0) continue;
-  //         if(x==0 && y==0) {
-  //           fmap->cells[MAP_INDEX(fmap, center_x, center_y)].diff+=map->cells[MAP_INDEX(map, x+center_x, y+center_y)].diff / 4;
-  //         } else if(x==0 || y==0) {
-  //           fmap->cells[MAP_INDEX(fmap, center_x, center_y)].diff+=map->cells[MAP_INDEX(map, x+center_x, y+center_y)].diff / 8;
-  //         } else {
-  //           fmap->cells[MAP_INDEX(fmap, center_x, center_y)].diff+=map->cells[MAP_INDEX(map, x+center_x, y+center_y)].diff / 16;
-  //         }
-  //       }
-  //     }
-  //   }
-  // }
+  // 3*3の場合
+  for(int center_x=0; center_x<map->size_x; center_x++){
+    for(int center_y=0; center_y<map->size_y; center_y++){
+      for (int x=-1; x<=1; x++){
+        for(int y=-1; y<=1; y++){
+          if (!(MAP_VALID(map, x+center_x, y+center_y))) continue;
+          if (map->cells[MAP_INDEX(map, x+center_x, y+center_y)].diff == 0.0) continue;
+          if(x==0 && y==0) {
+            fmap->cells[MAP_INDEX(fmap, center_x, center_y)].diff+=map->cells[MAP_INDEX(map, x+center_x, y+center_y)].diff / 4;
+          } else if(x==0 || y==0) {
+            fmap->cells[MAP_INDEX(fmap, center_x, center_y)].diff+=map->cells[MAP_INDEX(map, x+center_x, y+center_y)].diff / 8;
+          } else {
+            fmap->cells[MAP_INDEX(fmap, center_x, center_y)].diff+=map->cells[MAP_INDEX(map, x+center_x, y+center_y)].diff / 16;
+          }
+        }
+      }
+    }
+  }
 
-  // for(int i=0;i<map->size_x;i++) {
-  //     for(int j=0;j<map->size_y;j++) {
-  //       if (!(MAP_VALID(map, i, j))) continue;
-  //       map->cells[MAP_INDEX(map, i, j)].diff=fmap->cells[MAP_INDEX(fmap, i, j)].diff;
-  //     } 
-  // }
+  for(int i=0;i<map->size_x;i++) {
+      for(int j=0;j<map->size_y;j++) {
+        if (!(MAP_VALID(map, i, j))) continue;
+        map->cells[MAP_INDEX(map, i, j)].diff=fmap->cells[MAP_INDEX(fmap, i, j)].diff;
+      } 
+  }
 
   return map;
 }
@@ -1330,6 +1335,7 @@ AmclNode::cloudReceived(const sensor_msgs::PointCloudConstPtr& point_cloud)
                             p.pose.pose.orientation);
       np.position.x = hyps[max_weight_hyp].pf_pose_mean.v[0];
       np.position.y = hyps[max_weight_hyp].pf_pose_mean.v[1];
+      np.position.z = 2.0;
       tf::quaternionTFToMsg(tf::createQuaternionFromYaw(hyps[max_weight_hyp].pf_pose_mean.v[2]),
                             np.orientation);
       // Copy in the covariance, converting from 3-D to 6-D

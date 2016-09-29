@@ -133,7 +133,7 @@ double AMCLPointCloud::ElevationDifferenceMapModel(AMCLPointCloudData *data, pf_
 
         double z = self->map->cells[MAP_INDEX(self->map,mi,mj)].diff - obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff;
         // pz += self->z_hit * exp(-(z * z) / z_hit_denom);
-        double pz = obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff * exp(-(z * z) / z_hit_denom); 
+        double pz = obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff * exp(-(z * z) / (z_hit_denom + self->map->cells[MAP_INDEX(self->map,mi,mj)].cov)); 
         // pz += self->z_rand * z_rand_mult;
 
         // p += pz*pz*pz;
