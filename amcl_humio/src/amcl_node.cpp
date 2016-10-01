@@ -325,8 +325,8 @@ AmclNode::AmclNode() :
   private_nh_.param("kld_z", pf_z_, 0.99);
   private_nh_.param("odom_alpha1", alpha1_, 0.2);
   private_nh_.param("odom_alpha2", alpha2_, 0.2);
-  private_nh_.param("odom_alpha3", alpha3_, 0.2);
-  private_nh_.param("odom_alpha4", alpha4_, 0.2);
+  private_nh_.param("odom_alpha3", alpha3_, 0.8);
+  private_nh_.param("odom_alpha4", alpha4_, 0.4);
   private_nh_.param("odom_alpha5", alpha5_, 0.2);
   // private_nh_.param("odom_alpha1", alpha1_, 0.0);
   // private_nh_.param("odom_alpha2", alpha2_, 0.0);
@@ -853,8 +853,8 @@ AmclNode::convertMap( const nav_msgs::OccupancyGrid& map_msg )
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/3f_0901.pcd"), *map_cloud);
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0907_01.pcd"), *map_cloud);
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0927_01.pcd"), *map_cloud);
-  reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0927_02.pcd"), *map_cloud);
-  
+  // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0927_02.pcd"), *map_cloud);
+  reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_1002_01.pcd"), *map_cloud);
   for(int i=0;i<map_cloud->points.size();i++)
   {
     int mi = MAP_GXWX(map,map_cloud->points.at(i).x);
@@ -1179,12 +1179,12 @@ AmclNode::cloudReceived(const sensor_msgs::PointCloudConstPtr& point_cloud)
     filter_cloud->points.clear();
     for(int i=0; i<voxel_cloud->points.size(); i++) {
       // map_updata_cell(ds_map, voxel_cloud->points.at(i).x, voxel_cloud->points.at(i).y, voxel_cloud->points.at(i).z);
-      if ((voxel_cloud->points.at(i).z-cloud_z_) < 1.5){
+    //   if ((voxel_cloud->points.at(i).z-cloud_z_) < 1.5){
        filter_cloud->points.push_back(voxel_cloud->points.at(i));
-      } else {
-       voxel_cloud->points.at(i).z = 1.5;
-       filter_cloud->points.push_back(voxel_cloud->points.at(i));
-      }
+    //   } else {
+    //    voxel_cloud->points.at(i).z = 1.5;
+    //    filter_cloud->points.push_back(voxel_cloud->points.at(i));
+    //   }
     }
 
     // pcl::PointCloud<pcl::PointXYZ>::Ptr filter_cloud (new pcl::PointCloud<pcl::PointXYZ>);
