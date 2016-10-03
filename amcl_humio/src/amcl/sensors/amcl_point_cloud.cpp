@@ -97,7 +97,7 @@ double AMCLPointCloud::ElevationDifferenceMapModel(AMCLPointCloudData *data, pf_
     // obs_map->origin_y = pose.v[1];
     // obs_map->cells = (map_cell_t*)malloc(sizeof(map_cell_t)*obs_map->size_x*obs_map->size_y);
 
-    double z_hit_denom = 2 * self->z_sigma * self->z_sigma;
+    // double z_hit_denom = 2 * self->z_sigma * self->z_sigma;
     // double z_rand_mult = 1.0/30.0;
 
     for (int i = 0; i < data->points_size; i++)
@@ -133,7 +133,8 @@ double AMCLPointCloud::ElevationDifferenceMapModel(AMCLPointCloudData *data, pf_
 
         double z = self->map->cells[MAP_INDEX(self->map,mi,mj)].diff - obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff;
         // pz += self->z_hit * exp(-(z * z) / z_hit_denom);
-        double pz = obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff * exp(-(z * z) / (z_hit_denom + self->map->cells[MAP_INDEX(self->map,mi,mj)].cov)); 
+        double z_hit_denom = 2 * (self->z_sigma + self->map->cells[MAP_INDEX(self->map,mi,mj)].cov) * (self->z_sigma + self->map->cells[MAP_INDEX(self->map,mi,mj)].cov);
+        double pz = obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff * exp(-(z * z) / (z_hit_denom)); 
         // pz += self->z_rand * z_rand_mult;
 
         // p += pz*pz*pz;
