@@ -48,6 +48,7 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl_ros/transforms.h>
 
 #include <fstream>
 
@@ -125,7 +126,7 @@ class AmclNode
                         nav_msgs::SetMap::Response& res);
 
     // void laserReceived(const sensor_msgs::LaserScanConstPtr& laser_scan);
-    void cloudReceived(const sensor_msgs::PointCloudConstPtr& point_cloud);
+    void cloudReceived(const sensor_msgs::PointCloud2ConstPtr& point_cloud);
     void initialPoseReceived(const geometry_msgs::PoseWithCovarianceStampedConstPtr& msg);
     void handleInitialPoseMessage(const geometry_msgs::PoseWithCovarianceStamped& msg);
     void mapReceived(const nav_msgs::OccupancyGridConstPtr& msg);
@@ -252,6 +253,7 @@ class AmclNode
 
     geometry_msgs::PoseArray path_;
     double cloud_z_;
+    int step_;
 };
 
 std::vector<std::pair<int,int> > AmclNode::free_space_indices;
@@ -300,6 +302,7 @@ AmclNode::AmclNode() :
 	      private_nh_("~"),
         initial_pose_hyp_(NULL),
         first_map_received_(false)/*,*/
+        , step_(0)
         // first_reconfigure_call_(true)
 {
   boost::recursive_mutex::scoped_lock l(configuration_mutex_);
@@ -317,15 +320,15 @@ AmclNode::AmclNode() :
   // private_nh_.param("laser_min_range", laser_min_range_, -1.0);
   // private_nh_.param("laser_max_range", laser_max_range_, -1.0);
   // private_nh_.param("laser_max_beams", max_beams_, 30);
-  private_nh_.param("min_particles", min_particles_, 5);
-  private_nh_.param("max_particles", max_particles_, 50);
+  private_nh_.param("min_particles", min_particles_, 10);
+  private_nh_.param("max_particles", max_particles_, 100);
   // private_nh_.param("min_particles", min_particles_, 1);
   // private_nh_.param("max_particles", max_particles_, 1);
   private_nh_.param("kld_err", pf_err_, 0.01);
   private_nh_.param("kld_z", pf_z_, 0.99);
   private_nh_.param("odom_alpha1", alpha1_, 0.2);
   private_nh_.param("odom_alpha2", alpha2_, 0.2);
-  private_nh_.param("odom_alpha3", alpha3_, 0.8);
+  private_nh_.param("odom_alpha3", alpha3_, 0.9);
   private_nh_.param("odom_alpha4", alpha4_, 0.4);
   private_nh_.param("odom_alpha5", alpha5_, 0.2);
   // private_nh_.param("odom_alpha1", alpha1_, 0.0);
@@ -389,8 +392,8 @@ AmclNode::AmclNode() :
   private_nh_.param("resample_interval", resample_interval_, 2);
   double tmp_tol;
   private_nh_.param("transform_tolerance", tmp_tol, 0.1);
-  private_nh_.param("recovery_alpha_slow", alpha_slow_, 0.001);
-  private_nh_.param("recovery_alpha_fast", alpha_fast_, 0.1);
+  private_nh_.param("recovery_alpha_slow", alpha_slow_, 0.0);
+  private_nh_.param("recovery_alpha_fast", alpha_fast_, 0.0);
   private_nh_.param("tf_broadcast", tf_broadcast_, true);
 
   transform_tolerance_.fromSec(tmp_tol);
@@ -418,7 +421,8 @@ AmclNode::AmclNode() :
   //                                                       100);
   // laser_scan_filter_->registerCallback(boost::bind(&AmclNode::laserReceived,
   //                                                  this, _1));
-  point_cloud_sub_ = nh_.subscribe(std::string("/hokuyo3d/hokuyo_cloud"), 100, &AmclNode::cloudReceived, this);
+  // point_cloud_sub_ = nh_.subscribe(std::string("/hokuyo3d/hokuyo_cloud"), 100, &AmclNode::cloudReceived, this);
+  point_cloud_sub_ = nh_.subscribe(std::string("/disting_cloud2"), 100, &AmclNode::cloudReceived, this);
   initial_pose_sub_ = nh_.subscribe("initialpose", 2, &AmclNode::initialPoseReceived, this);
 
   if(use_map_topic_) {
@@ -670,7 +674,7 @@ AmclNode::checkCloudReceived(const ros::TimerEvent& event)
   {
     ROS_WARN("No point cloud received (and thus no pose updates have been published) for %f seconds.  Verify that data is being published on the %s topic.",
              d.toSec(),
-             ros::names::resolve("/hokuyo3d/hokuyo_cloud").c_str());
+             ros::names::resolve("/disting_cloud2").c_str());
   }
 }
 
@@ -821,11 +825,16 @@ AmclNode::convertMap( const nav_msgs::OccupancyGrid& map_msg )
   map_t* map = map_alloc();
   ROS_ASSERT(map);
 
-  map->size_x = map_msg.info.width;
-  map->size_y = map_msg.info.height;
-  map->scale = map_msg.info.resolution;
-  map->origin_x = map_msg.info.origin.position.x + (map->size_x / 2) * map->scale;
-  map->origin_y = map_msg.info.origin.position.y + (map->size_y / 2) * map->scale;
+   map->size_x = map_msg.info.width;
+   map->size_y = map_msg.info.height;
+   map->scale = map_msg.info.resolution;
+   map->origin_x = map_msg.info.origin.position.x + (map->size_x / 2) * map->scale;
+   map->origin_y = map_msg.info.origin.position.y + (map->size_y / 2) * map->scale;
+  // map->size_x = 2144;
+  // map->size_y = 1984;
+  // map->scale = 0.1;
+  // map->origin_x = -100.0 + (map->size_x / 2) * map->scale;
+  // map->origin_y = -100.0 + (map->size_y / 2) * map->scale;
   // Convert to player format
   map->cells = (map_cell_t*)malloc(sizeof(map_cell_t)*map->size_x*map->size_y);
   ROS_ASSERT(map->cells);
@@ -854,7 +863,9 @@ AmclNode::convertMap( const nav_msgs::OccupancyGrid& map_msg )
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0907_01.pcd"), *map_cloud);
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0927_01.pcd"), *map_cloud);
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0927_02.pcd"), *map_cloud);
-  reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_1002_01.pcd"), *map_cloud);
+  // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_1002_01.pcd"), *map_cloud);
+  // reader.read<pcl::PointXYZI> (std::string("/home/humio/delta_oshimizu_1013_01.pcd"), *map_cloud);
+  reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_1107_01.pcd"), *map_cloud);
   for(int i=0;i<map_cloud->points.size();i++)
   {
     int mi = MAP_GXWX(map,map_cloud->points.at(i).x);
@@ -1016,7 +1027,7 @@ AmclNode::setMapCallback(nav_msgs::SetMap::Request& req,
 }
 
 void
-AmclNode::cloudReceived(const sensor_msgs::PointCloudConstPtr& point_cloud)
+AmclNode::cloudReceived(const sensor_msgs::PointCloud2ConstPtr& point_cloud)
 {
 
   last_cloud_received_ts_ = ros::Time::now();
@@ -1145,9 +1156,12 @@ AmclNode::cloudReceived(const sensor_msgs::PointCloudConstPtr& point_cloud)
   if(clouds_update_[cloud_index])
   {
     sensor_msgs::PointCloud2 point_cloud2;
-    sensor_msgs::convertPointCloudToPointCloud2(*point_cloud, point_cloud2);
+    // sensor_msgs::convertPointCloudToPointCloud2(*point_cloud, point_cloud2);
+    point_cloud2 = *point_cloud;
+    sensor_msgs::PointCloud2 transformed_point_cloud;
+    if(!(pcl_ros::transformPointCloud(base_frame_id_, point_cloud2, transformed_point_cloud, *tf_))) return;
     pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_point_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::fromROSMsg(point_cloud2, *pcl_point_cloud);
+    pcl::fromROSMsg(transformed_point_cloud, *pcl_point_cloud);
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr voxel_cloud (new pcl::PointCloud<pcl::PointXYZ>);
     pcl::VoxelGrid<pcl::PointXYZ> vg;
@@ -1242,7 +1256,9 @@ AmclNode::cloudReceived(const sensor_msgs::PointCloudConstPtr& point_cloud)
     //   cdata.points[i][2] = voxel_cloud->points.at(i).z;
     // }
 
+    // std::cout << "step: " << step_ << std::endl;
     clouds_[cloud_index]->UpdateSensor(pf_, (AMCLSensorData*)&cdata);
+    step_++;
 
     // ROS_INFO_STREAM("time :" << ros::Time::now() - start);
 

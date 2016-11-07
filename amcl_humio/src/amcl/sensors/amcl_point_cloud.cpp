@@ -61,6 +61,7 @@ double AMCLPointCloud::ElevationDifferenceMapModel(AMCLPointCloudData *data, pf_
 
   for (int j = 0; j < set->sample_count; j++)
   {
+    // std::cout << "sample num: " << j << std::endl;
     // clock_t start = clock();
     map_t *obs_map = map_alloc();
     obs_map->size_x = self->map->size_x;
@@ -84,7 +85,7 @@ double AMCLPointCloud::ElevationDifferenceMapModel(AMCLPointCloudData *data, pf_
     pf_sample_t *sample = set->samples + j;
     pf_vector_t pose = sample->pose;
 
-    pose = pf_vector_coord_add(self->point_cloud_pose, pose);
+    // pose = pf_vector_coord_add(self->point_cloud_pose, pose);
 
     // double p = 1.0;
     double p = 0.0;
@@ -125,16 +126,19 @@ double AMCLPointCloud::ElevationDifferenceMapModel(AMCLPointCloudData *data, pf_
       {
         // double pz = 0.0;
         
-        // if(self->map->cells[MAP_INDEX(self->map,mi,mj)].diff == 0.0 || obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff == 0.0) continue;
+        if(self->map->cells[MAP_INDEX(self->map,mi,mj)].diff == 0.0 || obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff == 0.0) continue;
         // std::cout << "test" << std::endl;
-        // if(self->map->cells[MAP_INDEX(self->map,mi,mj)].diff < 0.05 || obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff < 0.05) continue;
+        if(self->map->cells[MAP_INDEX(self->map,mi,mj)].diff < 0.05 || obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff < 0.05) continue;
 
         if((!MAP_VALID(self->map, mi, mj))||(!MAP_VALID(obs_map, mi, mj))) continue;
 
         double z = self->map->cells[MAP_INDEX(self->map,mi,mj)].diff - obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff;
         // pz += self->z_hit * exp(-(z * z) / z_hit_denom);
         double z_hit_denom = 2 * (self->z_sigma + self->map->cells[MAP_INDEX(self->map,mi,mj)].cov) * (self->z_sigma + self->map->cells[MAP_INDEX(self->map,mi,mj)].cov);
-        double pz = obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff * exp(-(z * z) / (z_hit_denom)); 
+        // double pz = obs_map->cells[MAP_INDEX(obs_map,mi,mj)].diff * exp(-(z * z) / (z_hit_denom));
+        double pz = exp(-(z * z) / (z_hit_denom));
+        // std::cout << pz << std::endl;
+        // std::cout << "pz: " << ps << std::endl;
         // pz += self->z_rand * z_rand_mult;
 
         // p += pz*pz*pz;
@@ -177,13 +181,18 @@ double AMCLPointCloud::ElevationDifferenceMapModel(AMCLPointCloudData *data, pf_
     // mk++;
     // ml=MAP_GYWY(obs_map, pose.v[1]-15);
     // }
-    
+    // std::cout << std::endl;
+    // std::cout << "p: " << p << std::endl;
+    // std::cout << std::endl;
+    // std::cout << std::endl;
     sample->weight *= p;
     total_weight += sample->weight;
     map_free(obs_map);
     obs_map = NULL;
     // memset(obs_map->cells, 0, sizeof(map_cell_t)*obs_map->size_x*obs_map->size_y);
   }
+  // std::cout << std::endl;
+  // std::cout << std::endl;
   // map_free(obs_map);
   // obs_map = NULL;
     
