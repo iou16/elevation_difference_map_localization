@@ -50,7 +50,7 @@ double AMCLPointCloud::ElevationDifferenceMapModel(AMCLPointCloudData *data, pf_
   AMCLPointCloud *self = (AMCLPointCloud*) data->sensor;
 
   double total_weight = 0.0;
-  double z_hit_denom = 2 * self->z_sigma * self->z_sigma;
+  // double z_hit_denom = 2 * self->z_sigma * self->z_sigma;
 
   for (int j = 0; j < set->sample_count; j++)
   {
@@ -70,7 +70,7 @@ double AMCLPointCloud::ElevationDifferenceMapModel(AMCLPointCloudData *data, pf_
       int mi = MAP_GXWX(self->map, hit.v[0]), mj = MAP_GYWY(self->map, hit.v[1]);
 
       double z = self->map->cells[MAP_INDEX(self->map,mi,mj)].diff - data->points[i][2];
-      // double z_hit_denom = 2 * (self->z_sigma + self->map->cells[MAP_INDEX(self->map,mi,mj)].cov) * (self->z_sigma + self->map->cells[MAP_INDEX(self->map,mi,mj)].cov);
+      double z_hit_denom = 2 * (self->z_sigma + self->map->cells[MAP_INDEX(self->map,mi,mj)].cov) * (self->z_sigma + self->map->cells[MAP_INDEX(self->map,mi,mj)].cov);
       double pz = data->points[i][2] * exp(-(z * z) / (z_hit_denom));
       p += pz * pz * pz;
 
