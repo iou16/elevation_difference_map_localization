@@ -320,8 +320,8 @@ AmclNode::AmclNode() :
   // private_nh_.param("laser_min_range", laser_min_range_, -1.0);
   // private_nh_.param("laser_max_range", laser_max_range_, -1.0);
   // private_nh_.param("laser_max_beams", max_beams_, 30);
-  private_nh_.param("min_particles", min_particles_, 10);
-  private_nh_.param("max_particles", max_particles_, 100);
+  private_nh_.param("min_particles", min_particles_, 1000);
+  private_nh_.param("max_particles", max_particles_, 1000);
   // private_nh_.param("min_particles", min_particles_, 1);
   // private_nh_.param("max_particles", max_particles_, 1);
   private_nh_.param("kld_err", pf_err_, 0.01);
@@ -1155,75 +1155,21 @@ AmclNode::cloudReceived(const sensor_msgs::PointCloud2ConstPtr& point_cloud)
   // If the robot has moved, update the filter
   if(clouds_update_[cloud_index])
   {
-    sensor_msgs::PointCloud2 point_cloud2;
-    // sensor_msgs::convertPointCloudToPointCloud2(*point_cloud, point_cloud2);
-    point_cloud2 = *point_cloud;
     sensor_msgs::PointCloud2 transformed_point_cloud;
-    if(!(pcl_ros::transformPointCloud(base_frame_id_, point_cloud2, transformed_point_cloud, *tf_))) return;
+    if(!(pcl_ros::transformPointCloud(base_frame_id_, *point_cloud, transformed_point_cloud, *tf_))) return;
     pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_point_cloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromROSMsg(transformed_point_cloud, *pcl_point_cloud);
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr voxel_cloud (new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::VoxelGrid<pcl::PointXYZ> vg;
-    vg.setInputCloud (pcl_point_cloud);
-    vg.setLeafSize (0.1, 0.1, 0.1);
-    vg.filter (*voxel_cloud);
-    // ROS_INFO_STREAM("voxel :" << voxel_cloud->points.size());
-
-    // map_t *ds_map = map_alloc();
-    // ds_map->size_x = 300;
-    // ds_map->size_y = 300;
-    // ds_map->scale = 0.1;
-    // // ds_map->origin_x = 15.0;
-    // // ds_map->origin_y = 15.0;
-    // ds_map->origin_x = 0.0;
-    // ds_map->origin_y = 0.0;
-    // ds_map->cells = (map_cell_t*)malloc(sizeof(map_cell_t)*ds_map->size_x*ds_map->size_y);
-
-    // for(int i=0; i<ds_map->size_x*ds_map->size_y; i++) {
-    //   // if(ds_map->cells[i].diff == 0.0) {
-    //   //   ROS_INFO("diff: %f", ds_map->cells[i].diff);
-    //   // }    
-    //   ds_map->cells[i].diff = 0.0;
-    //   ds_map->cells[i].min = 0.0;
-    //   ds_map->cells[i].max = 0.0;
-    // }
-
-    pcl::PointCloud<pcl::PointXYZ>::Ptr filter_cloud (new pcl::PointCloud<pcl::PointXYZ>);
-    filter_cloud->points.clear();
-    for(int i=0; i<voxel_cloud->points.size(); i++) {
-      // map_updata_cell(ds_map, voxel_cloud->points.at(i).x, voxel_cloud->points.at(i).y, voxel_cloud->points.at(i).z);
-    //   if ((voxel_cloud->points.at(i).z-cloud_z_) < 1.5){
-       filter_cloud->points.push_back(voxel_cloud->points.at(i));
-    //   } else {
-    //    voxel_cloud->points.at(i).z = 1.5;
-    //    filter_cloud->points.push_back(voxel_cloud->points.at(i));
-    //   }
-    }
-
-    // pcl::PointCloud<pcl::PointXYZ>::Ptr filter_cloud (new pcl::PointCloud<pcl::PointXYZ>);
-    // for (int i=0; i<ds_map->size_x; i++) {
-    //   for (int j=0; j<ds_map->size_y; j++) {
-    //     if(ds_map->cells[MAP_INDEX(ds_map, i, j)].min == ds_map->cells[MAP_INDEX(ds_map, i, j)].max) continue;
-    //     if(ds_map->cells[MAP_INDEX(ds_map, i, j)].diff == 0.0) continue;
-    //     if(fabs(ds_map->cells[MAP_INDEX(ds_map, i, j)].diff) < 0.05) continue;
-    //     pcl::PointXYZ p_msg;
-    //     p_msg.x = MAP_WXGX(ds_map, i);
-    //     p_msg.y = MAP_WXGX(ds_map, j);
-    //     p_msg.z = ds_map->cells[MAP_INDEX(ds_map, i, j)].min;
-    //     filter_cloud->points.push_back(p_msg);
-    //     p_msg.z = ds_map->cells[MAP_INDEX(ds_map, i, j)].max;
-    //     filter_cloud->points.push_back(p_msg);
-    //   }
-    // }
-    // map_free(ds_map);
-    // ds_map = NULL;
-
-    // // ROS_INFO_STREAM("filter :" << filter_cloud->points.size());
+    voxel_cloud = pcl_point_cloud;
+    // pcl::VoxelGrid<pcl::PointXYZ> vg;
+    // vg.setInputCloud (pcl_point_cloud);
+    // vg.setLeafSize (0.1, 0.1, 0.1);
+    // vg.filter (*voxel_cloud);
 
     AMCLPointCloudData cdata;
     cdata.sensor = clouds_[cloud_index];
-    cdata.points_size = filter_cloud->points.size();
+    cdata.points_size = voxel_cloud->points.size();
 
     // The AMCLLaserData destructor will free this memory
     cdata.points = new double[cdata.points_size][3];
@@ -1233,28 +1179,10 @@ AmclNode::cloudReceived(const sensor_msgs::PointCloud2ConstPtr& point_cloud)
     {
       // amcl doesn't (yet) have a concept of min range.  So we'll map short
       // readings to max range.
-      cdata.points[i][0] = filter_cloud->points.at(i).x;
-      cdata.points[i][1] = filter_cloud->points.at(i).y;
-      cdata.points[i][2] = filter_cloud->points.at(i).z;
+      cdata.points[i][0] = voxel_cloud->points.at(i).x;
+      cdata.points[i][1] = voxel_cloud->points.at(i).y;
+      cdata.points[i][2] = voxel_cloud->points.at(i).z;
     }
-    // filter_cloud->points.clear();
-
-    // AMCLPointCloudData cdata;
-    // cdata.sensor = clouds_[cloud_index];
-    // cdata.points_size = voxel_cloud->points.size();
-
-    // // The AMCLLaserData destructor will free this memory
-    // cdata.points = new double[cdata.points_size][3];
-    // ROS_ASSERT(cdata.points);
-
-    // for(int i=0;i<cdata.points_size;i++)
-    // {
-    //   // amcl doesn't (yet) have a concept of min range.  So we'll map short
-    //   // readings to max range.
-    //   cdata.points[i][0] = voxel_cloud->points.at(i).x;
-    //   cdata.points[i][1] = voxel_cloud->points.at(i).y;
-    //   cdata.points[i][2] = voxel_cloud->points.at(i).z;
-    // }
 
     // std::cout << "step: " << step_ << std::endl;
     clouds_[cloud_index]->UpdateSensor(pf_, (AMCLSensorData*)&cdata);
