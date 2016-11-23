@@ -320,7 +320,7 @@ AmclNode::AmclNode() :
   // private_nh_.param("laser_min_range", laser_min_range_, -1.0);
   // private_nh_.param("laser_max_range", laser_max_range_, -1.0);
   // private_nh_.param("laser_max_beams", max_beams_, 30);
-  private_nh_.param("min_particles", min_particles_, 1000);
+  private_nh_.param("min_particles", min_particles_, 100);
   private_nh_.param("max_particles", max_particles_, 1000);
   // private_nh_.param("min_particles", min_particles_, 1);
   // private_nh_.param("max_particles", max_particles_, 1);
@@ -422,7 +422,7 @@ AmclNode::AmclNode() :
   // laser_scan_filter_->registerCallback(boost::bind(&AmclNode::laserReceived,
   //                                                  this, _1));
   // point_cloud_sub_ = nh_.subscribe(std::string("/hokuyo3d/hokuyo_cloud"), 100, &AmclNode::cloudReceived, this);
-  point_cloud_sub_ = nh_.subscribe(std::string("/disting_cloud2"), 100, &AmclNode::cloudReceived, this);
+  point_cloud_sub_ = nh_.subscribe(std::string("/elevation_difference_cloud"), 100, &AmclNode::cloudReceived, this);
   initial_pose_sub_ = nh_.subscribe("initialpose", 2, &AmclNode::initialPoseReceived, this);
 
   if(use_map_topic_) {

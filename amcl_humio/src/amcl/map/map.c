@@ -35,20 +35,3 @@ void map_free(map_t *map)
   return;
 }
 
-
-void map_updata_cell(map_t *map, double gx, double gy, double data)
-{
-  int mi = MAP_GXWX(map, gx), mj = MAP_GYWY(map, gy);
-  
-  if (!MAP_VALID(map, mi, mj))
-    return;
-
-  if (map->cells[MAP_INDEX(map,mi,mj)].min == 0.0 && map->cells[MAP_INDEX(map,mi,mj)].max == 0.0) {
-    map->cells[MAP_INDEX(map,mi,mj)].min = data;
-    map->cells[MAP_INDEX(map,mi,mj)].max = data;
-  } else {
-    map->cells[MAP_INDEX(map,mi,mj)].min = (map->cells[MAP_INDEX(map,mi,mj)].min >= data) ? data: map->cells[MAP_INDEX(map,mi,mj)].min;
-    map->cells[MAP_INDEX(map,mi,mj)].max = (map->cells[MAP_INDEX(map,mi,mj)].max <= data) ? data: map->cells[MAP_INDEX(map,mi,mj)].max;
-  }
-  map->cells[MAP_INDEX(map,mi,mj)].diff = map->cells[MAP_INDEX(map,mi,mj)].max - map->cells[MAP_INDEX(map,mi,mj)].min;
-}

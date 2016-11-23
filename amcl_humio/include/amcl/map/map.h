@@ -11,7 +11,7 @@ extern "C" {
 typedef struct
 {
   int occ_state;
-  double min, max, diff, cov;
+  double diff, cov;
 } map_cell_t;
 
 typedef struct
@@ -29,8 +29,6 @@ typedef struct
 map_t *map_alloc(void);
 
 void map_free(map_t *map);
-
-void map_updata_cell(map_t *map, double gx, double gy, double data);
 
 #define MAP_WXGX(map, i) (map->origin_x + ((i) - map->size_x / 2) * map->scale)
 #define MAP_WYGY(map, j) (map->origin_y + ((j) - map->size_y / 2) * map->scale)
