@@ -324,7 +324,7 @@ AmclNode::AmclNode() :
   private_nh_.param("max_particles", max_particles_, 1000);
   // private_nh_.param("min_particles", min_particles_, 1);
   // private_nh_.param("max_particles", max_particles_, 1);
-  private_nh_.param("kld_err", pf_err_, 0.01);
+  // private_nh_.param("kld_err", pf_err_, 0.01);
   private_nh_.param("kld_z", pf_z_, 0.99);
   private_nh_.param("odom_alpha1", alpha1_, 0.2);
   private_nh_.param("odom_alpha2", alpha2_, 0.2);
@@ -825,9 +825,9 @@ AmclNode::convertMap( const nav_msgs::OccupancyGrid& map_msg )
   map_t* map = map_alloc();
   ROS_ASSERT(map);
 
-   map->size_x = map_msg.info.width;
-   map->size_y = map_msg.info.height;
-   map->scale = map_msg.info.resolution;
+  map->size_x = floor(map_msg.info.width / 2 + 0.5); 
+  map->size_y = floor(map_msg.info.height / 2 + 0.5);
+  map->scale = map_msg.info.resolution * 2;
    map->origin_x = map_msg.info.origin.position.x + (map->size_x / 2) * map->scale;
    map->origin_y = map_msg.info.origin.position.y + (map->size_y / 2) * map->scale;
   // map->size_x = 2144;
@@ -865,7 +865,9 @@ AmclNode::convertMap( const nav_msgs::OccupancyGrid& map_msg )
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_0927_02.pcd"), *map_cloud);
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_1002_01.pcd"), *map_cloud);
   // reader.read<pcl::PointXYZI> (std::string("/home/humio/delta_oshimizu_1013_01.pcd"), *map_cloud);
-  reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_1107_01.pcd"), *map_cloud);
+  // reader.read<pcl::PointXYZI> (std::string("/home/humio/gaisyuu_1107_01.pcd"), *map_cloud);
+  // reader.read<pcl::PointXYZI> (std::string("/home/humio/2goukan.pcd"), *map_cloud);
+  reader.read<pcl::PointXYZI> (std::string("/home/humio/shinnara_dorm.pcd"), *map_cloud);
   for(int i=0;i<map_cloud->points.size();i++)
   {
     int mi = MAP_GXWX(map,map_cloud->points.at(i).x);

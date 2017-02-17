@@ -72,6 +72,7 @@ double AMCLPointCloud::ElevationDifferenceMapModel(AMCLPointCloudData *data, pf_
       double z = self->map->cells[MAP_INDEX(self->map,mi,mj)].diff - data->points[i][2];
       double z_hit_denom = 2 * (self->z_sigma + self->map->cells[MAP_INDEX(self->map,mi,mj)].cov) * (self->z_sigma + self->map->cells[MAP_INDEX(self->map,mi,mj)].cov);
       double pz = data->points[i][2] * exp(-(z * z) / (z_hit_denom));
+      // double pz = 1000 * exp(-(z * z) / (z_hit_denom));
       p += pz * pz * pz;
 
     }
